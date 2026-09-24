@@ -84,6 +84,20 @@
   .reminder button{padding:8px 14px;border-radius:9px;border:0;font:inherit;font-weight:700;cursor:pointer;}
   .reminder .go{background:var(--accent);color:#04170e;} .reminder .dismiss{background:transparent;border:1px solid var(--line);color:var(--muted);}
   .next{font-size:12px;color:var(--muted);}
+  #chart{position:relative;}
+  #chart circle{cursor:pointer;}
+  .tip{position:absolute;pointer-events:none;z-index:5;background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:9px;box-shadow:var(--shadow);padding:8px 10px;font-size:12px;display:none;min-width:150px;}
+  .tip.show{display:block;}
+  .tip b{display:block;font-size:13px;margin-bottom:2px;}
+  .tip .r{font-family:"IBM Plex Mono",monospace;font-weight:600;}
+  .tip .m{color:var(--muted);}
+  .hist td button{padding:5px 10px;font-size:12px;border-radius:7px;font-weight:600;cursor:pointer;}
+  .hist .edit{background:var(--panel2);color:var(--txt);border:1px solid var(--line);}
+  .hist .del{background:transparent;color:var(--win);border:1px solid var(--line);margin-left:6px;}
+  .hist .save{background:var(--accent);color:#04170e;border:0;} .hist .cancel{background:transparent;border:1px solid var(--line);color:var(--muted);margin-left:6px;}
+  .hist input{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:5px 7px;font:inherit;font-size:13px;}
+  .hist input.d{width:130px;} .hist input.t{width:96px;} .hist input.rt{width:96px;} .hist input.co{width:150px;}
+  .toggle{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;}
   .gate{max-width:360px;margin:60px auto;padding:22px;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);text-align:center;}
   .gate input{width:100%;margin:12px 0;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--txt);font:inherit;}
 </style>
@@ -137,8 +151,20 @@
 
     <section class="card chart">
       <div class="chart-head"><p class="sec-title" style="margin:0">Evolución de la tasa</p><span class="status" id="chartInfo"></span></div>
-      <div id="chart"></div>
+      <div id="chart"><div id="chartsvg"></div><div class="tip" id="tip"></div></div>
       <div class="legend" id="legend"></div>
+    </section>
+
+    <section>
+      <div class="chart-head" style="margin-bottom:6px">
+        <p class="sec-title" style="margin:0">Historial completo</p>
+        <button class="toggle" id="histToggle" type="button">Mostrar historial</button>
+      </div>
+      <div class="wrapx" id="histWrap" hidden><table class="hist">
+        <thead><tr><th>Compañía</th><th>Tasa</th><th>Fecha</th><th>Hora</th><th>Acciones</th></tr></thead>
+        <tbody id="histBody"></tbody>
+      </table></div>
+      <p class="note" id="histNote" hidden>Corrige fecha, hora, tasa o compañía de cualquier registro con "Editar". "Borrar" elimina el registro.</p>
     </section>
   </div>
 
@@ -217,9 +243,62 @@ function render(){
       <td class="mono" style="color:var(--muted)">${when}</td><td class="mono">${fmt.format(q.rate)}</td>${cond}${diff}</tr>`;
   }).join("");
   drawChart(colorIdx);
+  renderHistory();
 }
+
+// ---- historial completo (editable) ----
+let editingId=null;
+function renderHistory(){
+  const body=document.getElementById("histBody"); if(!body) return;
+  const rows=[...QUOTES].sort((a,b)=>b.ts-a.ts);
+  if(!rows.length){ body.innerHTML='<tr><td colspan="5" class="empty">Sin registros.</td></tr>'; return; }
+  body.innerHTML=rows.map(q=>{
+    if(q.id===editingId){
+      return `<tr data-id="${q.id}">
+        <td><input class="co" id="e_co" value="${(q.company||'').replace(/"/g,'&quot;')}"/></td>
+        <td><input class="rt mono" id="e_rt" type="number" step="0.0001" value="${q.rate}"/></td>
+        <td><input class="d" id="e_d" type="date" value="${q.fecha||''}"/></td>
+        <td><input class="t" id="e_t" type="time" value="${q.hora||''}"/></td>
+        <td><button class="save" data-act="save" data-id="${q.id}">Guardar</button><button class="cancel" data-act="cancel">Cancelar</button></td>
+      </tr>`;
+    }
+    return `<tr data-id="${q.id}">
+      <td>${q.company}</td><td class="mono">${fmt.format(q.rate)}</td>
+      <td class="mono">${q.fecha||'—'}</td><td class="mono">${q.hora||'—'}</td>
+      <td><button class="edit" data-act="edit" data-id="${q.id}">Editar</button><button class="del" data-act="del" data-id="${q.id}">Borrar</button></td>
+    </tr>`;
+  }).join("");
+}
+document.getElementById("histToggle").addEventListener("click",()=>{
+  const w=document.getElementById("histWrap"), n=document.getElementById("histNote"), b=document.getElementById("histToggle");
+  const hidden=w.hasAttribute("hidden");
+  if(hidden){ w.removeAttribute("hidden"); n.removeAttribute("hidden"); b.textContent="Ocultar historial"; }
+  else{ w.setAttribute("hidden",""); n.setAttribute("hidden",""); b.textContent="Mostrar historial"; }
+});
+document.getElementById("histBody").addEventListener("click", async (e)=>{
+  const btn=e.target.closest("button"); if(!btn) return;
+  const act=btn.getAttribute("data-act"), id=btn.getAttribute("data-id");
+  if(act==="edit"){ editingId=id; renderHistory(); return; }
+  if(act==="cancel"){ editingId=null; renderHistory(); return; }
+  if(act==="save"){
+    const body={ id, company:document.getElementById("e_co").value, rate:document.getElementById("e_rt").value,
+      fecha:document.getElementById("e_d").value, hora:document.getElementById("e_t").value };
+    try{ const r=await api("/api/quotes/update",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+      const j=await r.json(); if(!r.ok)throw new Error(j.error||("HTTP "+r.status));
+      editingId=null; loadData();
+    }catch(err){ alert("Error al guardar: "+(err.message||err)); }
+    return;
+  }
+  if(act==="del"){
+    const row=QUOTES.find(x=>x.id===id); const label=row?`${row.company} (${row.fecha||''} ${row.hora||''})`:id;
+    if(!confirm("¿Borrar el registro "+label+"?")) return;
+    try{ const r=await api("/api/quotes/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+      const j=await r.json(); if(!r.ok)throw new Error(j.error||("HTTP "+r.status)); loadData();
+    }catch(err){ alert("Error al borrar: "+(err.message||err)); }
+  }
+});
 function drawChart(colorIdx){
-  const host=document.getElementById("chart"),legend=document.getElementById("legend");
+  const host=document.getElementById("chartsvg"),legend=document.getElementById("legend");
   if(!QUOTES.length){host.innerHTML='<p class="empty">El gráfico aparece cuando registres cotizaciones.</p>';legend.innerHTML="";return;}
   const W=920,H=300,m={t:14,r:14,b:28,l:56},iw=W-m.l-m.r,ih=H-m.t-m.b;
   const ts=QUOTES.map(q=>q.ts);let minT=Math.min(...ts),maxT=Math.max(...ts);if(minT===maxT){minT-=3600000;maxT+=3600000;}
@@ -233,12 +312,35 @@ function drawChart(colorIdx){
   const fx=t=>{const d=new Date(t);return d.toLocaleDateString("es-CO",{day:"2-digit",month:"2-digit"})+" "+d.toTimeString().slice(0,5);};
   svg+=`<text class="axis" x="${m.l}" y="${H-8}" text-anchor="start">${fx(minT)}</text><text class="axis" x="${W-m.r}" y="${H-8}" text-anchor="end">${fx(maxT)}</text>`;
   const leg=[];
+  const esc=s=>String(s).replace(/"/g,"&quot;").replace(/</g,"&lt;");
   for(const [k,a] of g){const b=isBuda(k),col=b?cssVar("--buda-line"):cssVar(COLORS[(colorIdx.get(k)||0)%COLORS.length]);
     if(a.length>1)svg+=`<polyline points="${a.map(q=>x(q.ts)+','+y(q.rate)).join(' ')}" fill="none" stroke="${col}" stroke-width="${b?3:2}" stroke-linejoin="round" stroke-linecap="round"/>`;
-    for(const q of a)svg+=`<circle cx="${x(q.ts)}" cy="${y(q.rate)}" r="${b?4:3}" fill="${col}"/>`;
+    for(const q of a){ const when=(q.fecha?`${q.fecha} ${q.hora||''}`:new Date(q.ts).toLocaleString("es-CO")).trim();
+      // círculo de apoyo (área de hover mayor) + punto visible, ambos con datos
+      svg+=`<circle cx="${x(q.ts)}" cy="${y(q.rate)}" r="10" fill="transparent" class="pt" data-co="${esc(q.company)}" data-w="${esc(when)}" data-r="${esc(fmt.format(q.rate))}"/>`;
+      svg+=`<circle cx="${x(q.ts)}" cy="${y(q.rate)}" r="${b?4:3}" fill="${col}" pointer-events="none"/>`;
+    }
     leg.push(`<span><span class="swatch" style="background:${col}"></span>${k}</span>`);}
   svg+="</svg>";host.innerHTML=svg;legend.innerHTML=leg.join("");
   document.getElementById("chartInfo").textContent=`${QUOTES.length} registros · ${g.size} compañías`;
+  wireTooltip();
+}
+function wireTooltip(){
+  const svgEl=document.getElementById("chartsvg"), tip=document.getElementById("tip"), chart=document.getElementById("chart");
+  if(!svgEl||!tip) return;
+  const show=(t)=>{
+    const co=t.getAttribute("data-co"), w=t.getAttribute("data-w"), r=t.getAttribute("data-r");
+    tip.innerHTML=`<b>${co}</b><span class="r">${r} VES/COP</span><br><span class="m">${w}</span>`;
+    const cr=chart.getBoundingClientRect(), pr=t.getBoundingClientRect();
+    let left=pr.left-cr.left+pr.width/2, top=pr.top-cr.top;
+    tip.classList.add("show");
+    const tw=tip.offsetWidth, th=tip.offsetHeight;
+    left=Math.max(4,Math.min(left-tw/2, cr.width-tw-4));
+    top=top-th-10; if(top<0) top=pr.bottom-cr.top+10;
+    tip.style.left=left+"px"; tip.style.top=top+"px";
+  };
+  svgEl.addEventListener("mouseover",e=>{ if(e.target.classList&&e.target.classList.contains("pt")) show(e.target); });
+  svgEl.addEventListener("mouseout",e=>{ if(e.target.classList&&e.target.classList.contains("pt")) tip.classList.remove("show"); });
 }
 
 // ---- alta ----
@@ -276,7 +378,7 @@ if(lget("remindOn")==="1")enableRem();else document.getElementById("next").textC
 setInterval(checkRem,30000);
 
 // ---- arranque + refresco periódico (ver lo que registran otros) ----
-render(); loadData(); setInterval(loadData, 25000);
+render(); loadData(); setInterval(()=>{ if(!editingId) loadData(); }, 25000);
 </script>
 </body>
 </html>
