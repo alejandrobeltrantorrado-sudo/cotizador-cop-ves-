@@ -8,7 +8,7 @@ Netlify solo sirve archivos estáticos: no guarda un historial compartido por s�
 el servidor y, con un Volume, guarda los datos de forma persistente. Por eso va en Railway.
 
 ## Desplegar en Railway
-1. Sube estos archivos a un repo NUEVO (server.js, package.json, .gitignore y la carpeta public/).
+1. Sube estos archivos a un repo NUEVO (server.js, index.html, package.json, .gitignore).
 2. Railway → Deploy from GitHub repo → elige el repo.
 3. **Persistencia (importante):** agrega un **Volume** al servicio y móntalo en `/data`.
    Luego en Variables pon `DATA_DIR=/data`. Así el historial sobrevive reinicios y despliegues.
