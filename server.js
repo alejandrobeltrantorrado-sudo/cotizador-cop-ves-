@@ -83,15 +83,13 @@ const server = http.createServer(async (req, res) => {
       return sendJSON(res, 200, { ok: true });
     }
 
-    // estáticos
-    let file = p === '/' ? 'index.html' : p.replace(/^\/+/, '');
-    file = path.normalize(file).replace(/^(\.\.(\/|\\|$))+/, '');
-    const abs = path.join(__dirname, 'public', file);
-    if (!abs.startsWith(path.join(__dirname, 'public'))) { res.writeHead(403); return res.end('Forbidden'); }
-    fs.readFile(abs, (err, buf) => {
-      if (err) { res.writeHead(404); return res.end('Not found'); }
-      res.writeHead(200, { 'Content-Type': MIME[path.extname(abs)] || 'application/octet-stream' }); res.end(buf);
-    });
+    // Cualquier otra ruta GET sirve la página (SPA). index.html está en la raíz, sin carpetas.
+    if (req.method === 'GET') {
+      let html = null; try { html = fs.readFileSync(path.join(__dirname, 'index.html')); } catch {}
+      if (html) { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(html); }
+      res.writeHead(404); return res.end('index.html no encontrado en el servidor');
+    }
+    res.writeHead(404); return res.end('No encontrado');
   } catch (err) { sendJSON(res, 502, { error: String(err && err.message || err) }); }
 });
 server.listen(PORT, () => console.log(`Cotizador COP-VES en :${PORT} — datos en ${DATA_DIR}${APP_PASSWORD ? ' — con clave' : ''}`));
