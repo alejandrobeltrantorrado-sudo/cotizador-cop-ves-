@@ -83,6 +83,35 @@ const server = http.createServer(async (req, res) => {
       return sendJSON(res, 200, { ok: true });
     }
 
+    // Editar un registro (corregir fecha/hora/tasa/compañía). Recalcula ts si cambia fecha/hora.
+    if (p === '/api/quotes/update' && req.method === 'POST') {
+      if (!authed(url, req)) return sendJSON(res, 401, { error: 'clave requerida' });
+      let b = {}; try { b = JSON.parse(await readBody(req) || '{}'); } catch { return sendJSON(res, 400, { error: 'JSON inválido' }); }
+      if (!b.id) return sendJSON(res, 400, { error: 'id requerido' });
+      const quotes = readJSON(QUOTES_FILE, []);
+      const q = quotes.find((x) => x.id === b.id);
+      if (!q) return sendJSON(res, 404, { error: 'registro no encontrado' });
+      if (b.company != null && String(b.company).trim()) q.company = String(b.company).trim();
+      if (b.rate != null && num(b.rate) > 0) q.rate = num(b.rate);
+      if (b.fecha != null) q.fecha = b.fecha || q.fecha;
+      if (b.hora != null) q.hora = b.hora || q.hora;
+      const dt = new Date(`${q.fecha || ''}T${q.hora || '00:00'}:00`);
+      if (!isNaN(dt.getTime())) q.ts = dt.getTime();
+      writeJSON(QUOTES_FILE, quotes);
+      return sendJSON(res, 200, { ok: true, entry: q });
+    }
+
+    // Borrar un registro.
+    if (p === '/api/quotes/delete' && req.method === 'POST') {
+      if (!authed(url, req)) return sendJSON(res, 401, { error: 'clave requerida' });
+      let b = {}; try { b = JSON.parse(await readBody(req) || '{}'); } catch { return sendJSON(res, 400, { error: 'JSON inválido' }); }
+      if (!b.id) return sendJSON(res, 400, { error: 'id requerido' });
+      const quotes = readJSON(QUOTES_FILE, []);
+      const next = quotes.filter((x) => x.id !== b.id);
+      writeJSON(QUOTES_FILE, next);
+      return sendJSON(res, 200, { ok: true, deleted: quotes.length - next.length });
+    }
+
     // Cualquier otra ruta GET sirve la página (SPA). index.html está en la raíz, sin carpetas.
     if (req.method === 'GET') {
       let html = null; try { html = fs.readFileSync(path.join(__dirname, 'index.html')); } catch {}
