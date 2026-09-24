@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Comparables COP-VES · Buda</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+  :root{
+    color-scheme: light;
+    --bg:#f3f6f4; --panel:#ffffff; --panel2:#eef2f0; --line:#e0e6e3;
+    --txt:#14201b; --muted:#5c6862; --accent:#12a05e;
+    --buda-bg:#e8f6ee; --buda-line:#12a05e; --buda-text:#0c7a45;
+    --win:#cf3b41; --lose:#12a05e; --grid:#e7edea;
+    --c1:#3b7cff; --c2:#e08a1e; --c3:#b5539c; --c4:#d1495b; --c5:#6a8f4f; --c6:#8a6d3b;
+    --shadow:0 1px 3px rgba(20,40,30,.06);
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#0e1512; --panel:#141b18; --panel2:#18201c; --line:#26302b;
+    --txt:#e7ece9; --muted:#8a978f; --accent:#3ecb86;
+    --buda-bg:#12241b; --buda-line:#2f8f63; --buda-text:#5fd39a;
+    --win:#e2686d; --lose:#4cc98a; --grid:#222b26;
+    --c1:#5b9bff; --c2:#e8a54a; --c3:#cf76b8; --c4:#e56d78; --c5:#8db06a; --c6:#b39256;
+    --shadow:0 1px 3px rgba(0,0,0,.3);
+  }}
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --bg:#0e1512; --panel:#141b18; --panel2:#18201c; --line:#26302b;
+    --txt:#e7ece9; --muted:#8a978f; --accent:#3ecb86;
+    --buda-bg:#12241b; --buda-line:#2f8f63; --buda-text:#5fd39a;
+    --win:#e2686d; --lose:#4cc98a; --grid:#222b26;
+    --c1:#5b9bff; --c2:#e8a54a; --c3:#cf76b8; --c4:#e56d78; --c5:#8db06a; --c6:#b39256;
+    --shadow:0 1px 3px rgba(0,0,0,.3);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  .mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;}
+  .wrap{max-width:1080px;margin:0 auto;padding-block:22px;padding-left:16px;padding-right:16px;}
+  header{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:baseline;margin-bottom:6px;}
+  h1{font-size:20px;font-weight:700;margin:0;letter-spacing:-.01em;} h1 .dot{color:var(--accent);}
+  .subtitle{color:var(--muted);font-size:13px;}
+  .refline{color:var(--muted);font-size:13px;margin:2px 0 18px;}
+  .refline input{width:130px;background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:5px 8px;font:inherit;}
+  section{margin-bottom:24px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);}
+  .sec-title{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;margin:0 0 10px;}
+  .form{padding:16px 18px;}
+  .form form{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+  .field{display:flex;flex-direction:column;gap:4px;}
+  .field label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+  .field input{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:9px 11px;font:inherit;}
+  .field input.company{width:190px;} .field input.rate{width:120px;} .field input.small{width:120px;}
+  button{background:var(--accent);color:#04170e;border:0;border-radius:9px;padding:10px 18px;font:inherit;font-weight:700;cursor:pointer;}
+  button:disabled{opacity:.5;cursor:default;}
+  .msg{font-size:12.5px;margin-left:4px;align-self:center;} .msg.err{color:var(--win);} .msg.ok{color:var(--lose);}
+  .wrapx{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--panel);box-shadow:var(--shadow);}
+  table{width:100%;border-collapse:collapse;font-size:14px;}
+  th,td{padding:11px 13px;border-bottom:1px solid var(--line);white-space:nowrap;text-align:right;}
+  th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left;}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;background:var(--panel2);}
+  tbody tr:last-child td{border-bottom:0;}
+  tr.buda td{background:var(--buda-bg);}
+  tr.buda td:first-child{border-left:3px solid var(--buda-line);font-weight:700;color:var(--buda-text);}
+  .swatch{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:7px;vertical-align:middle;}
+  .cond{font-weight:600;} .cond.mejor{color:var(--win);} .cond.peor{color:var(--lose);} .cond.igual{color:var(--muted);}
+  .diff.pos{color:var(--lose);} .diff.neg{color:var(--win);}
+  .empty{padding:26px 18px;color:var(--muted);text-align:center;font-size:14px;}
+  .chart{padding:16px 18px;}
+  .chart-head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:6px;}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:8px;}
+  .legend span{display:inline-flex;align-items:center;}
+  svg{display:block;width:100%;height:auto;}
+  .axis{fill:var(--muted);font-size:10px;font-family:"IBM Plex Mono",monospace;}
+  .gridline{stroke:var(--grid);stroke-width:1;}
+  .note{color:var(--muted);font-size:12px;margin-top:10px;}
+  .status{font-size:12px;color:var(--muted);}
+  .bell{margin-left:auto;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;}
+  .bell.on{background:var(--buda-bg);border-color:var(--buda-line);color:var(--buda-text);}
+  .reminder{display:none;align-items:center;gap:12px;flex-wrap:wrap;background:var(--buda-bg);border:1px solid var(--buda-line);border-radius:14px;padding:14px 16px;margin-bottom:18px;box-shadow:var(--shadow);}
+  .reminder.show{display:flex;}
+  .reminder .rtxt{font-weight:600;color:var(--buda-text);} .reminder .rsub{color:var(--muted);font-size:13px;}
+  .reminder .spacer{margin-left:auto;}
+  .reminder button{padding:8px 14px;border-radius:9px;border:0;font:inherit;font-weight:700;cursor:pointer;}
+  .reminder .go{background:var(--accent);color:#04170e;} .reminder .dismiss{background:transparent;border:1px solid var(--line);color:var(--muted);}
+  .next{font-size:12px;color:var(--muted);}
+  .gate{max-width:360px;margin:60px auto;padding:22px;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);text-align:center;}
+  .gate input{width:100%;margin:12px 0;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--txt);font:inherit;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span class="dot">●</span> Comparables Buda · COP → VES</h1>
+    <span class="subtitle">Cotizaciones de la competencia frente a Buda · Colombia</span>
+    <button class="bell" id="bell" type="button">🔔 Activar recordatorios</button>
+  </header>
+  <div class="refline">
+    Monto de referencia: $<input class="mono" id="refInput" type="number" min="0" step="1000" value="1000000" /> COP
+    · <span class="status" id="status">cargando…</span> · <span class="next" id="next"></span>
+  </div>
+
+  <div class="reminder" id="reminder">
+    <span class="rtxt">⏰ Es hora de cotizar</span>
+    <span class="rsub">Registra las tasas COP→VES de la competencia.</span>
+    <span class="spacer"></span>
+    <button class="go" id="rGo" type="button">Registrar ahora</button>
+    <button class="dismiss" id="rDismiss" type="button">Listo</button>
+  </div>
+
+  <div id="app">
+    <section class="card form">
+      <p class="sec-title">Registrar cotización</p>
+      <form id="f">
+        <div class="field"><label>Compañía</label>
+          <input class="company" id="fCompany" list="companies" placeholder="Ej. GLOBAL 66" autocomplete="off" required />
+          <datalist id="companies"></datalist>
+        </div>
+        <div class="field"><label>Tasa compra</label>
+          <input class="rate mono" id="fRate" type="number" step="0.0001" placeholder="3.6400" required />
+        </div>
+        <div class="field"><label>Fecha</label><input class="small" id="fDate" type="date" required /></div>
+        <div class="field"><label>Hora</label><input class="small" id="fTime" type="time" required /></div>
+        <button type="submit" id="fBtn">Agregar</button>
+        <span class="msg" id="fMsg"></span>
+      </form>
+    </section>
+
+    <section>
+      <p class="sec-title">Comparación actual (última tasa por compañía)</p>
+      <div class="wrapx"><table>
+        <thead><tr><th>Compañía</th><th>Últ. registro</th><th>Tasa compra</th><th>Condición vs Buda</th><th>Diferencia</th></tr></thead>
+        <tbody id="tbody"><tr><td colspan="5" class="empty">Cargando…</td></tr></tbody>
+      </table></div>
+      <p class="note">Tasa más alta = mejor para el cliente. "Condición" describe a cada compañía frente a Buda; "Diferencia" = tasa Buda − tasa compañía.</p>
+    </section>
+
+    <section class="card chart">
+      <div class="chart-head"><p class="sec-title" style="margin:0">Evolución de la tasa</p><span class="status" id="chartInfo"></span></div>
+      <div id="chart"></div>
+      <div class="legend" id="legend"></div>
+    </section>
+  </div>
+
+  <div id="gate" class="gate" hidden>
+    <p class="sec-title" style="margin:0 0 4px">Acceso</p>
+    <p style="color:var(--muted);font-size:13px;margin:0">Ingresa la clave para ver y registrar cotizaciones.</p>
+    <input id="gateKey" type="password" placeholder="Clave" />
+    <button id="gateBtn" type="button">Entrar</button>
+    <p class="msg err" id="gateMsg" style="margin-top:8px"></p>
+  </div>
+</div>
+
+<script>
+"use strict";
+const KNOWN=["BUDA.COM","GLOBAL 66","VITA WALLET","RETORNA","ACCIVALORES","WESTERN UNION","CAMBIOS APP"];
+const COLORS=["--c1","--c2","--c3","--c4","--c5","--c6"];
+const fmt=new Intl.NumberFormat("es-CO",{maximumFractionDigits:4});
+const fmtCop=new Intl.NumberFormat("es-CO",{maximumFractionDigits:0});
+let QUOTES=[], REF_AMOUNT=1000000;
+const lget=k=>{try{return localStorage.getItem(k);}catch{return null;}};
+const lset=(k,v)=>{try{localStorage.setItem(k,v);}catch{}};
+let KEY=lget("appKey")||"";
+
+function isBuda(n){return /buda/i.test(n||"");}
+function cssVar(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||"#888";}
+document.getElementById("companies").innerHTML=KNOWN.map(c=>`<option value="${c}">`).join("");
+(function(){const n=new Date();document.getElementById("fDate").value=n.toISOString().slice(0,10);document.getElementById("fTime").value=n.toTimeString().slice(0,5);})();
+
+// ---- API ----
+function api(path, opts){ opts=opts||{}; const u=new URL(path, location.origin);
+  if(KEY) u.searchParams.set("key", KEY);
+  return fetch(u, opts);
+}
+async function loadData(){
+  try{
+    const r=await api("/api/quotes");
+    if(r.status===401){ showGate(); return; }
+    const j=await r.json();
+    QUOTES=(j.quotes||[]).filter(q=>Number(q.rate)>0&&Number(q.ts)>0).sort((a,b)=>a.ts-b.ts);
+    if(j.config&&Number(j.config.refAmount)>0) REF_AMOUNT=Number(j.config.refAmount);
+    hideGate(); document.getElementById("status").textContent="en vivo · "+new Date(j.generatedAt).toLocaleTimeString("es-CO");
+    render();
+  }catch(e){ document.getElementById("status").textContent="error de conexión"; }
+}
+function showGate(){ document.getElementById("app").style.display="none"; document.getElementById("gate").hidden=false; }
+function hideGate(){ document.getElementById("app").style.display=""; document.getElementById("gate").hidden=true; }
+document.getElementById("gateBtn").addEventListener("click", async ()=>{
+  KEY=document.getElementById("gateKey").value.trim(); lset("appKey",KEY);
+  const r=await api("/api/quotes");
+  if(r.status===401){ document.getElementById("gateMsg").textContent="Clave incorrecta."; return; }
+  loadData();
+});
+
+// ---- render tabla + chart (idéntico al del cotizador) ----
+function latestByCompany(){ const m=new Map();
+  for(const q of QUOTES){ const k=(q.company||"").toUpperCase(); if(!m.has(k)||q.ts>m.get(k).ts) m.set(k,q); }
+  return [...m.values()]; }
+function render(){
+  const ri=document.getElementById("refInput"); if(ri&&document.activeElement!==ri) ri.value=REF_AMOUNT;
+  const latest=latestByCompany(); const buda=latest.find(q=>isBuda(q.company))||null;
+  const rows=[...latest].sort((a,b)=>{if(isBuda(a.company))return -1;if(isBuda(b.company))return 1;return (b.rate||0)-(a.rate||0);});
+  const nonBuda=[...new Set(latest.filter(q=>!isBuda(q.company)).map(q=>q.company.toUpperCase()))].sort();
+  const colorIdx=new Map(); nonBuda.forEach((c,i)=>colorIdx.set(c,i));
+  const tb=document.getElementById("tbody");
+  if(!rows.length){ tb.innerHTML='<tr><td colspan="5" class="empty">Aún no hay cotizaciones. Registra la primera arriba (empieza por Buda).</td></tr>'; }
+  else tb.innerHTML=rows.map(q=>{
+    const b=isBuda(q.company);
+    const col=b?cssVar("--buda-line"):cssVar(COLORS[(colorIdx.get(q.company.toUpperCase())||0)%COLORS.length]);
+    let cond='<td class="cond igual">—</td>',diff='<td class="mono">—</td>';
+    if(!b&&buda){ const d=+(buda.rate-q.rate).toFixed(4);
+      cond=q.rate>buda.rate?'<td class="cond mejor">MEJOR TASA</td>':q.rate<buda.rate?'<td class="cond peor">PEOR TASA</td>':'<td class="cond igual">IGUAL TASA</td>';
+      diff=`<td class="mono diff ${d>0?'pos':d<0?'neg':''}">${d>0?'+':''}${fmt.format(d)}</td>`;
+    } else if(b) cond='<td class="cond igual">— referencia —</td>';
+    const when=q.fecha?`${q.fecha} ${q.hora||''}`:new Date(q.ts).toLocaleString("es-CO");
+    return `<tr class="${b?'buda':''}"><td><span class="swatch" style="background:${col}"></span>${q.company}</td>
+      <td class="mono" style="color:var(--muted)">${when}</td><td class="mono">${fmt.format(q.rate)}</td>${cond}${diff}</tr>`;
+  }).join("");
+  drawChart(colorIdx);
+}
+function drawChart(colorIdx){
+  const host=document.getElementById("chart"),legend=document.getElementById("legend");
+  if(!QUOTES.length){host.innerHTML='<p class="empty">El gráfico aparece cuando registres cotizaciones.</p>';legend.innerHTML="";return;}
+  const W=920,H=300,m={t:14,r:14,b:28,l:56},iw=W-m.l-m.r,ih=H-m.t-m.b;
+  const ts=QUOTES.map(q=>q.ts);let minT=Math.min(...ts),maxT=Math.max(...ts);if(minT===maxT){minT-=3600000;maxT+=3600000;}
+  const rs=QUOTES.map(q=>q.rate);let minR=Math.min(...rs),maxR=Math.max(...rs);const pad=(maxR-minR)*0.15||Math.abs(maxR*0.05)||1;minR-=pad;maxR+=pad;
+  const x=t=>m.l+(maxT===minT?iw/2:(t-minT)/(maxT-minT)*iw),y=r=>m.t+ih-(r-minR)/(maxR-minR)*ih;
+  const g=new Map();for(const q of QUOTES){const k=q.company.toUpperCase();if(!g.has(k))g.set(k,[]);g.get(k).push(q);}
+  for(const a of g.values())a.sort((x,y)=>x.ts-y.ts);
+  let svg=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Evolución de tasa por compañía">`;
+  const yt=5;for(let i=0;i<=yt;i++){const val=minR+(maxR-minR)*i/yt,yy=y(val);
+    svg+=`<line class="gridline" x1="${m.l}" y1="${yy}" x2="${W-m.r}" y2="${yy}"/><text class="axis" x="${m.l-8}" y="${yy+3}" text-anchor="end">${fmt.format(val)}</text>`;}
+  const fx=t=>{const d=new Date(t);return d.toLocaleDateString("es-CO",{day:"2-digit",month:"2-digit"})+" "+d.toTimeString().slice(0,5);};
+  svg+=`<text class="axis" x="${m.l}" y="${H-8}" text-anchor="start">${fx(minT)}</text><text class="axis" x="${W-m.r}" y="${H-8}" text-anchor="end">${fx(maxT)}</text>`;
+  const leg=[];
+  for(const [k,a] of g){const b=isBuda(k),col=b?cssVar("--buda-line"):cssVar(COLORS[(colorIdx.get(k)||0)%COLORS.length]);
+    if(a.length>1)svg+=`<polyline points="${a.map(q=>x(q.ts)+','+y(q.rate)).join(' ')}" fill="none" stroke="${col}" stroke-width="${b?3:2}" stroke-linejoin="round" stroke-linecap="round"/>`;
+    for(const q of a)svg+=`<circle cx="${x(q.ts)}" cy="${y(q.rate)}" r="${b?4:3}" fill="${col}"/>`;
+    leg.push(`<span><span class="swatch" style="background:${col}"></span>${k}</span>`);}
+  svg+="</svg>";host.innerHTML=svg;legend.innerHTML=leg.join("");
+  document.getElementById("chartInfo").textContent=`${QUOTES.length} registros · ${g.size} compañías`;
+}
+
+// ---- alta ----
+document.getElementById("f").addEventListener("submit", async (e)=>{
+  e.preventDefault(); const msg=document.getElementById("fMsg"),btn=document.getElementById("fBtn");
+  const company=document.getElementById("fCompany").value.trim(),rate=document.getElementById("fRate").value;
+  const fecha=document.getElementById("fDate").value,hora=document.getElementById("fTime").value;
+  if(!company||!(Number(rate)>0)){msg.textContent="Compañía y tasa válida obligatorias";msg.className="msg err";return;}
+  btn.disabled=true;msg.textContent="Guardando…";msg.className="msg";
+  try{ const r=await api("/api/quotes",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({company,rate,fecha,hora,refAmount:REF_AMOUNT})});
+    const j=await r.json(); if(!r.ok)throw new Error(j.error||("HTTP "+r.status));
+    msg.textContent="Agregado.";msg.className="msg ok";
+    document.getElementById("fCompany").value="";document.getElementById("fRate").value="";
+    loadData();
+  }catch(err){msg.textContent="Error: "+(err.message||err);msg.className="msg err";}
+  finally{btn.disabled=false;}
+});
+document.getElementById("refInput").addEventListener("change", async (e)=>{
+  const v=Number(e.target.value); if(!(v>0))return; REF_AMOUNT=v;
+  try{ await api("/api/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({refAmount:v})}); }catch{}
+});
+
+// ---- recordatorios en la página ----
+const RH=[8,10,12,14]; let remindOn=false,lastSlot=lget("lastSlot")||null,ac=null;
+function colHM(d){const f=new Intl.DateTimeFormat("en-US",{timeZone:"America/Bogota",hour:"2-digit",minute:"2-digit",hour12:false,year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(d).reduce((o,p)=>(o[p.type]=p.value,o),{});return{h:parseInt(f.hour,10),m:parseInt(f.minute,10),key:`${f.year}-${f.month}-${f.day}`};}
+function nextLabel(){const c=colHM(new Date());const up=RH.find(h=>h>c.h||(h===c.h&&c.m===0));return up!=null?`Próximo aviso: ${String(up).padStart(2,"0")}:00`:"Próximo aviso: mañana 08:00";}
+function beep(){try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();const o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);o.type="sine";o.frequency.value=880;g.gain.setValueAtTime(0.001,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.3,ac.currentTime+0.02);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.6);o.start();o.stop(ac.currentTime+0.62);}catch{}}
+function fireReminder(){document.getElementById("reminder").classList.add("show");beep();try{if(window.Notification&&Notification.permission==="granted")new Notification("Hora de cotizar COP→VES",{body:"Registra las tasas de la competencia."});}catch{}try{document.title="🔔 Cotizar · Comparables COP-VES";}catch{}}
+function checkRem(){document.getElementById("next").textContent=remindOn?nextLabel():"recordatorios apagados";if(!remindOn)return;const c=colHM(new Date());if(c.m!==0||!RH.includes(c.h))return;const slot=`${c.key}-${c.h}`;if(slot===lastSlot)return;lastSlot=slot;lset("lastSlot",slot);fireReminder();}
+async function enableRem(){remindOn=true;lset("remindOn","1");const b=document.getElementById("bell");b.classList.add("on");b.textContent="🔔 Recordatorios activos";try{if(window.Notification&&Notification.permission==="default")await Notification.requestPermission();}catch{}try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state==="suspended")ac.resume();}catch{}checkRem();}
+document.getElementById("bell").addEventListener("click",()=>{if(remindOn){remindOn=false;lset("remindOn","0");const b=document.getElementById("bell");b.classList.remove("on");b.textContent="🔔 Activar recordatorios";document.getElementById("next").textContent="recordatorios apagados";}else enableRem();});
+document.getElementById("rGo").addEventListener("click",()=>{document.getElementById("reminder").classList.remove("show");try{document.title="Comparables COP-VES";}catch{}document.getElementById("fCompany").scrollIntoView({behavior:"smooth",block:"center"});document.getElementById("fCompany").focus();});
+document.getElementById("rDismiss").addEventListener("click",()=>{document.getElementById("reminder").classList.remove("show");try{document.title="Comparables COP-VES";}catch{}});
+if(lget("remindOn")==="1")enableRem();else document.getElementById("next").textContent="recordatorios apagados";
+setInterval(checkRem,30000);
+
+// ---- arranque + refresco periódico (ver lo que registran otros) ----
+render(); loadData(); setInterval(loadData, 25000);
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "name": "cotizador-cop-ves-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cotizador COP-VES compartido con historial persistente y recordatorios. Sin dependencias.",
+  "engines": { "node": ">=18" },
+  "scripts": { "start": "node server.js" }
+}
