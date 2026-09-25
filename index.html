@@ -124,7 +124,10 @@
 
   <div id="app">
     <section class="card form">
-      <p class="sec-title">Registrar cotización</p>
+      <div class="chart-head" style="margin-bottom:10px">
+        <p class="sec-title" style="margin:0">Registrar cotización</p>
+        <span class="status mono" id="clock" title="Hora actual de Colombia (se actualiza sola)"></span>
+      </div>
       <form id="f">
         <div class="field"><label>Compañía</label>
           <input class="company" id="fCompany" list="companies" placeholder="Ej. GLOBAL 66" autocomplete="off" required />
@@ -191,7 +194,27 @@ let KEY=lget("appKey")||"";
 function isBuda(n){return /buda/i.test(n||"");}
 function cssVar(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||"#888";}
 document.getElementById("companies").innerHTML=KNOWN.map(c=>`<option value="${c}">`).join("");
-(function(){const n=new Date();document.getElementById("fDate").value=n.toISOString().slice(0,10);document.getElementById("fTime").value=n.toTimeString().slice(0,5);})();
+
+// Reloj vivo de Colombia: mantiene fecha/hora del formulario en la hora actual,
+// actualizándose cada segundo. Si estás escribiendo en un campo, ese no se pisa.
+function colNow(){
+  const f=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Bogota",year:"numeric",month:"2-digit",day:"2-digit",
+    hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false}).formatToParts(new Date())
+    .reduce((o,p)=>(o[p.type]=p.value,o),{});
+  const hh=f.hour==="24"?"00":f.hour;
+  return { date:`${f.year}-${f.month}-${f.day}`, time:`${hh}:${f.minute}`, full:`${hh}:${f.minute}:${f.second}` };
+}
+function tickClock(){
+  const c=colNow();
+  const clk=document.getElementById("clock"); if(clk) clk.textContent=`${c.date} · ${c.full}`;
+  const d=document.getElementById("fDate"), t=document.getElementById("fTime");
+  if(d && document.activeElement!==d && !d.dataset.touched) d.value=c.date;
+  if(t && document.activeElement!==t && !t.dataset.touched) t.value=c.time;
+}
+// si el usuario corrige manualmente, dejamos de auto-actualizar ese campo
+["fDate","fTime"].forEach(id=>{ const el=document.getElementById(id);
+  el.addEventListener("input",()=>{ el.dataset.touched="1"; }); });
+tickClock(); setInterval(tickClock, 1000);
 
 // ---- API ----
 function api(path, opts){ opts=opts||{}; const u=new URL(path, location.origin);
@@ -354,6 +377,9 @@ document.getElementById("f").addEventListener("submit", async (e)=>{
     const j=await r.json(); if(!r.ok)throw new Error(j.error||("HTTP "+r.status));
     msg.textContent="Agregado.";msg.className="msg ok";
     document.getElementById("fCompany").value="";document.getElementById("fRate").value="";
+    // reanuda el reloj vivo en fecha/hora tras registrar
+    const d=document.getElementById("fDate"),t=document.getElementById("fTime");
+    delete d.dataset.touched; delete t.dataset.touched; tickClock();
     loadData();
   }catch(err){msg.textContent="Error: "+(err.message||err);msg.className="msg err";}
   finally{btn.disabled=false;}
