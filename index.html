@@ -225,6 +225,7 @@ let KEY=lget("appKey")||"";
 function isBuda(n){return /buda/i.test(n||"");}
 function up(s){return String(s||"").toUpperCase();}
 function isHidden(n){return HIDDEN.has(up(n));}
+function visibleQuotes(){return QUOTES.filter(q=>!isHidden(q.company));}
 function cssVar(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||"#888";}
 // En modo presentación, cada competidor se vuelve "Competidor N" (numerado por tasa, más barata primero). Buda conserva su nombre.
 let ANON=new Map();
