@@ -98,6 +98,19 @@
   .hist input{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:5px 7px;font:inherit;font-size:13px;}
   .hist input.d{width:130px;} .hist input.t{width:96px;} .hist input.rt{width:96px;} .hist input.co{width:150px;}
   .toggle{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 16px;}
+  .ctrl{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:999px;padding:8px 15px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;}
+  .ctrl.on{background:var(--buda-bg);border-color:var(--buda-line);color:var(--buda-text);}
+  .badge{font-size:13px;font-weight:700;padding:7px 13px;border-radius:999px;}
+  .badge.good{background:var(--buda-bg);color:var(--buda-text);border:1px solid var(--buda-line);}
+  .badge.warn{background:var(--panel2);color:var(--muted);border:1px solid var(--line);}
+  .managePanel{padding:14px 16px;margin:-6px 0 18px;}
+  .managePanel .mrow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);}
+  .managePanel .mrow:last-child{border-bottom:0;}
+  .managePanel label{font-size:14px;cursor:pointer;display:flex;align-items:center;gap:9px;}
+  .managePanel input[type=checkbox]{width:16px;height:16px;cursor:pointer;}
+  .pres-note{display:none;background:var(--buda-bg);border:1px solid var(--buda-line);color:var(--buda-text);border-radius:10px;padding:8px 13px;font-size:12.5px;font-weight:600;margin:0 0 14px;}
+  .pres-note.show{display:block;}
   .gate{max-width:360px;margin:60px auto;padding:22px;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);text-align:center;}
   .gate input{width:100%;margin:12px 0;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--txt);font:inherit;}
 </style>
@@ -121,6 +134,15 @@
     <button class="go" id="rGo" type="button">Registrar ahora</button>
     <button class="dismiss" id="rDismiss" type="button">Listo</button>
   </div>
+
+  <div class="pres-note" id="presNote">👁 Modo presentación activo · los nombres de la competencia están ocultos para todos.</div>
+
+  <div class="controls">
+    <button class="ctrl" id="presentToggle" type="button">👁 Modo presentación</button>
+    <button class="ctrl" id="manageToggle" type="button">Ocultar apps</button>
+    <span class="badge" id="badge" hidden></span>
+  </div>
+  <div class="managePanel card" id="managePanel" hidden></div>
 
   <div id="app">
     <section class="card form">
@@ -149,7 +171,7 @@
         <thead><tr><th>Compañía</th><th>Últ. registro</th><th>Tasa compra</th><th>Condición vs Buda</th><th>Diferencia</th></tr></thead>
         <tbody id="tbody"><tr><td colspan="5" class="empty">Cargando…</td></tr></tbody>
       </table></div>
-      <p class="note">Tasa más alta = mejor para el cliente. "Condición" describe a cada compañía frente a Buda; "Diferencia" = tasa Buda − tasa compañía.</p>
+      <p class="note">Tasa más baja = mejor para el cliente (compra VES: menor tasa = más barato). "Condición" y "Diferencia" se miden frente a Buda: verde = Buda más barato (mejor); rojo = Buda más caro. "Diferencia" = tasa compañía − tasa Buda.</p>
     </section>
 
     <section class="card chart">
@@ -194,12 +216,22 @@ const COLORS=["--c1","--c2","--c3","--c4","--c5","--c6"];
 const fmt=new Intl.NumberFormat("es-CO",{maximumFractionDigits:4});
 const fmtCop=new Intl.NumberFormat("es-CO",{maximumFractionDigits:0});
 let QUOTES=[], REF_AMOUNT=1000000;
+let PRESENT=false, HIDDEN=new Set();   // modo presentación y apps ocultas (compartido, del servidor)
+let VIS=[];                            // cotizaciones visibles (sin las ocultas)
 const lget=k=>{try{return localStorage.getItem(k);}catch{return null;}};
 const lset=(k,v)=>{try{localStorage.setItem(k,v);}catch{}};
 let KEY=lget("appKey")||"";
 
 function isBuda(n){return /buda/i.test(n||"");}
+function up(s){return String(s||"").toUpperCase();}
+function isHidden(n){return HIDDEN.has(up(n));}
 function cssVar(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||"#888";}
+// En modo presentación, cada competidor se vuelve "Competidor N" (numerado por tasa, más barata primero). Buda conserva su nombre.
+let ANON=new Map();
+function buildAnon(){ ANON=new Map(); const latest=new Map();
+  for(const q of VIS){ const k=up(q.company); if(isBuda(k))continue; if(!latest.has(k)||q.ts>latest.get(k).ts) latest.set(k,q); }
+  [...latest.values()].sort((a,b)=>a.rate-b.rate).forEach((q,i)=>ANON.set(up(q.company),"Competidor "+(i+1))); }
+function dispName(company){ if(isBuda(company))return "BUDA.COM"; if(!PRESENT)return company; return ANON.get(up(company))||"Competidor"; }
 document.getElementById("companies").innerHTML=KNOWN.map(c=>`<option value="${c}">`).join("");
 
 // Reloj vivo de Colombia: mantiene fecha/hora del formulario en la hora actual,
@@ -235,6 +267,8 @@ async function loadData(){
     const j=await r.json();
     QUOTES=(j.quotes||[]).filter(q=>Number(q.rate)>0&&Number(q.ts)>0).sort((a,b)=>a.ts-b.ts);
     if(j.config&&Number(j.config.refAmount)>0) REF_AMOUNT=Number(j.config.refAmount);
+    PRESENT=!!(j.config&&j.config.presentation);
+    HIDDEN=new Set(((j.config&&j.config.hidden)||[]).map(s=>String(s).toUpperCase()));
     hideGate(); document.getElementById("status").textContent="en vivo · "+new Date(j.generatedAt).toLocaleTimeString("es-CO");
     render();
   }catch(e){ document.getElementById("status").textContent="error de conexión"; }
@@ -248,40 +282,59 @@ document.getElementById("gateBtn").addEventListener("click", async ()=>{
   loadData();
 });
 
-// ---- render tabla + chart (idéntico al del cotizador) ----
+// ---- render tabla + chart ----
+// Tasa MÁS BAJA = mejor para el cliente (compra VES: menor tasa = más barato).
 function latestByCompany(){ const m=new Map();
-  for(const q of QUOTES){ const k=(q.company||"").toUpperCase(); if(!m.has(k)||q.ts>m.get(k).ts) m.set(k,q); }
+  for(const q of VIS){ const k=(q.company||"").toUpperCase(); if(!m.has(k)||q.ts>m.get(k).ts) m.set(k,q); }
   return [...m.values()]; }
 function render(){
+  VIS=visibleQuotes(); buildAnon();
   const ri=document.getElementById("refInput"); if(ri&&document.activeElement!==ri) ri.value=REF_AMOUNT;
   const latest=latestByCompany(); const buda=latest.find(q=>isBuda(q.company))||null;
-  const rows=[...latest].sort((a,b)=>{if(isBuda(a.company))return -1;if(isBuda(b.company))return 1;return (b.rate||0)-(a.rate||0);});
+  // orden: Buda primero, luego de más barata a más cara (mejor → peor)
+  const rows=[...latest].sort((a,b)=>{if(isBuda(a.company))return -1;if(isBuda(b.company))return 1;return (a.rate||0)-(b.rate||0);});
   const nonBuda=[...new Set(latest.filter(q=>!isBuda(q.company)).map(q=>q.company.toUpperCase()))].sort();
   const colorIdx=new Map(); nonBuda.forEach((c,i)=>colorIdx.set(c,i));
+  // insignia de ranking de Buda (1 = más competitivo)
+  const badge=document.getElementById("badge");
+  const ranked=[...latest].sort((a,b)=>(a.rate||0)-(b.rate||0));
+  const bi=ranked.findIndex(q=>isBuda(q.company));
+  if(badge){ if(bi>=0&&ranked.length>1){ const pos=bi+1,n=ranked.length;
+      badge.textContent=`★ Buda: ${pos}º más competitivo de ${n}`;
+      badge.className="badge "+(pos<=Math.max(1,Math.ceil(n/2))?"good":"warn"); badge.hidden=false;
+    } else badge.hidden=true; }
   const tb=document.getElementById("tbody");
   if(!rows.length){ tb.innerHTML='<tr><td colspan="5" class="empty">Aún no hay cotizaciones. Registra la primera arriba (empieza por Buda).</td></tr>'; }
   else tb.innerHTML=rows.map(q=>{
     const b=isBuda(q.company);
     const col=b?cssVar("--buda-line"):cssVar(COLORS[(colorIdx.get(q.company.toUpperCase())||0)%COLORS.length]);
     let cond='<td class="cond igual">—</td>',diff='<td class="mono">—</td>';
-    if(!b&&buda){ const d=+(buda.rate-q.rate).toFixed(4);
-      cond=q.rate>buda.rate?'<td class="cond mejor">MEJOR TASA</td>':q.rate<buda.rate?'<td class="cond peor">PEOR TASA</td>':'<td class="cond igual">IGUAL TASA</td>';
-      diff=`<td class="mono diff ${d>0?'pos':d<0?'neg':''}">${d>0?'+':''}${fmt.format(d)}</td>`;
+    if(!b&&buda){ const d=+(q.rate-buda.rate).toFixed(4); // competidor − Buda ; >0 = Buda más barato (mejor)
+      const col2=d>0?cssVar('--lose'):d<0?cssVar('--win'):cssVar('--muted');
+      const label=d>0?'Buda más barato':d<0?'Buda más caro':'Igual';
+      cond=`<td class="cond" style="color:${col2};font-weight:600">${label}</td>`;
+      diff=`<td class="mono" style="color:${col2}">${d>0?'+':''}${fmt.format(d)}</td>`;
     } else if(b) cond='<td class="cond igual">— referencia —</td>';
     const when=q.fecha?`${q.fecha} ${q.hora||''}`:new Date(q.ts).toLocaleString("es-CO");
-    return `<tr class="${b?'buda':''}"><td><span class="swatch" style="background:${col}"></span>${q.company}</td>
+    return `<tr class="${b?'buda':''}"><td><span class="swatch" style="background:${col}"></span>${dispName(q.company)}</td>
       <td class="mono" style="color:var(--muted)">${when}</td><td class="mono">${fmt.format(q.rate)}</td>${cond}${diff}</tr>`;
   }).join("");
   drawChart(colorIdx);
   renderHistory();
+  renderManage();
 }
 
 // ---- historial completo (editable) ----
 let editingId=null;
 function renderHistory(){
   const body=document.getElementById("histBody"); if(!body) return;
-  const rows=[...QUOTES].sort((a,b)=>b.ts-a.ts);
+  // En modo presentación: solo visibles, nombres anónimos y sin editar (vista para clientes).
+  const src=PRESENT?VIS:QUOTES;
+  const rows=[...src].sort((a,b)=>b.ts-a.ts);
   if(!rows.length){ body.innerHTML='<tr><td colspan="5" class="empty">Sin registros.</td></tr>'; return; }
+  if(PRESENT){ body.innerHTML=rows.map(q=>`<tr data-id="${q.id}">
+      <td>${dispName(q.company)}</td><td class="mono">${fmt.format(q.rate)}</td>
+      <td class="mono">${q.fecha||'—'}</td><td class="mono">${q.hora||'—'}</td><td style="color:var(--muted)">—</td></tr>`).join(""); return; }
   body.innerHTML=rows.map(q=>{
     if(q.id===editingId){
       return `<tr data-id="${q.id}">
@@ -329,12 +382,12 @@ document.getElementById("histBody").addEventListener("click", async (e)=>{
 });
 function drawChart(colorIdx){
   const host=document.getElementById("chartsvg"),legend=document.getElementById("legend");
-  if(!QUOTES.length){host.innerHTML='<p class="empty">El gráfico aparece cuando registres cotizaciones.</p>';legend.innerHTML="";return;}
+  if(!VIS.length){host.innerHTML='<p class="empty">El gráfico aparece cuando registres cotizaciones.</p>';legend.innerHTML="";return;}
   const W=920,H=300,m={t:14,r:14,b:28,l:56},iw=W-m.l-m.r,ih=H-m.t-m.b;
-  const ts=QUOTES.map(q=>q.ts);let minT=Math.min(...ts),maxT=Math.max(...ts);if(minT===maxT){minT-=3600000;maxT+=3600000;}
-  const rs=QUOTES.map(q=>q.rate);let minR=Math.min(...rs),maxR=Math.max(...rs);const pad=(maxR-minR)*0.15||Math.abs(maxR*0.05)||1;minR-=pad;maxR+=pad;
+  const ts=VIS.map(q=>q.ts);let minT=Math.min(...ts),maxT=Math.max(...ts);if(minT===maxT){minT-=3600000;maxT+=3600000;}
+  const rs=VIS.map(q=>q.rate);let minR=Math.min(...rs),maxR=Math.max(...rs);const pad=(maxR-minR)*0.15||Math.abs(maxR*0.05)||1;minR-=pad;maxR+=pad;
   const x=t=>m.l+(maxT===minT?iw/2:(t-minT)/(maxT-minT)*iw),y=r=>m.t+ih-(r-minR)/(maxR-minR)*ih;
-  const g=new Map();for(const q of QUOTES){const k=q.company.toUpperCase();if(!g.has(k))g.set(k,[]);g.get(k).push(q);}
+  const g=new Map();for(const q of VIS){const k=q.company.toUpperCase();if(!g.has(k))g.set(k,[]);g.get(k).push(q);}
   for(const a of g.values())a.sort((x,y)=>x.ts-y.ts);
   let svg=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Evolución de tasa por compañía">`;
   const yt=5;for(let i=0;i<=yt;i++){const val=minR+(maxR-minR)*i/yt,yy=y(val);
@@ -347,12 +400,12 @@ function drawChart(colorIdx){
     if(a.length>1)svg+=`<polyline points="${a.map(q=>x(q.ts)+','+y(q.rate)).join(' ')}" fill="none" stroke="${col}" stroke-width="${b?3:2}" stroke-linejoin="round" stroke-linecap="round"/>`;
     for(const q of a){ const when=(q.fecha?`${q.fecha} ${q.hora||''}`:new Date(q.ts).toLocaleString("es-CO")).trim();
       // círculo de apoyo (área de hover mayor) + punto visible, ambos con datos
-      svg+=`<circle cx="${x(q.ts)}" cy="${y(q.rate)}" r="10" fill="transparent" class="pt" data-co="${esc(q.company)}" data-w="${esc(when)}" data-r="${esc(fmt.format(q.rate))}"/>`;
+      svg+=`<circle cx="${x(q.ts)}" cy="${y(q.rate)}" r="10" fill="transparent" class="pt" data-co="${esc(dispName(q.company))}" data-w="${esc(when)}" data-r="${esc(fmt.format(q.rate))}"/>`;
       svg+=`<circle cx="${x(q.ts)}" cy="${y(q.rate)}" r="${b?4:3}" fill="${col}" pointer-events="none"/>`;
     }
-    leg.push(`<span><span class="swatch" style="background:${col}"></span>${k}</span>`);}
+    leg.push(`<span><span class="swatch" style="background:${col}"></span>${dispName(k)}</span>`);}
   svg+="</svg>";host.innerHTML=svg;legend.innerHTML=leg.join("");
-  document.getElementById("chartInfo").textContent=`${QUOTES.length} registros · ${g.size} compañías`;
+  document.getElementById("chartInfo").textContent=`${VIS.length} registros · ${g.size} compañías`;
   wireTooltip();
 }
 function wireTooltip(){
@@ -444,6 +497,32 @@ document.getElementById("impFile").addEventListener("change", async (e)=>{
     ioMsg(`Importado: ${j.added} nuevos, ${j.updated} actualizados, ${j.skipped} descartados. Total: ${j.total}.`,"ok");
     loadData();
   }catch(err){ ioMsg("Error al importar: "+(err.message||err),"err"); }
+});
+
+// ---- modo presentación + ocultar apps (compartido, se guarda en el servidor) ----
+function allCompanies(){ const s=new Set(KNOWN.map(up)); for(const q of QUOTES) s.add(up(q.company)); return [...s].sort(); }
+async function saveConfig(patch){ try{ await api("/api/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(patch)}); }catch{} }
+function updatePresentBtn(){
+  const b=document.getElementById("presentToggle"); if(!b) return;
+  b.classList.toggle("on",PRESENT); b.textContent=PRESENT?"👁 Presentación: ACTIVA":"👁 Modo presentación";
+  const n=document.getElementById("presNote"); if(n) n.classList.toggle("show",PRESENT);
+}
+function renderManage(){
+  updatePresentBtn();
+  const p=document.getElementById("managePanel"); if(!p||p.hidden) return;
+  const comps=allCompanies();
+  p.innerHTML='<p class="sec-title" style="margin:0 0 6px">Ocultar apps · se oculta para todos</p>'+comps.map(c=>{
+    const dn=PRESENT&&!isBuda(c)?` <span style="color:var(--muted);font-size:12px">(se ve como ${ANON.get(c)||'Competidor'})</span>`:'';
+    return `<div class="mrow"><label><input type="checkbox" data-co="${c.replace(/"/g,'&quot;')}" ${HIDDEN.has(c)?'checked':''}/> ${c}</label>${dn}</div>`;
+  }).join('');
+}
+document.getElementById("presentToggle").addEventListener("click",()=>{ PRESENT=!PRESENT; render(); saveConfig({presentation:PRESENT}); });
+document.getElementById("manageToggle").addEventListener("click",()=>{ const p=document.getElementById("managePanel"); p.hidden=!p.hidden; renderManage(); });
+document.getElementById("managePanel").addEventListener("change",(e)=>{
+  const cb=e.target.closest("input[type=checkbox]"); if(!cb) return;
+  const co=up(cb.getAttribute("data-co"));
+  if(cb.checked) HIDDEN.add(co); else HIDDEN.delete(co);
+  render(); saveConfig({hidden:[...HIDDEN]});
 });
 
 // ---- arranque + refresco periódico (ver lo que registran otros) ----
