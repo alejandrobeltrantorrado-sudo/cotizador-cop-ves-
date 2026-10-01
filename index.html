@@ -161,8 +161,15 @@
     <section>
       <div class="chart-head" style="margin-bottom:6px">
         <p class="sec-title" style="margin:0">Historial completo</p>
-        <button class="toggle" id="histToggle" type="button">Mostrar historial</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto">
+          <button class="toggle" id="expJson" type="button" title="Descarga todo el historial como respaldo (.json)">⬇ Exportar respaldo</button>
+          <button class="toggle" id="expCsv" type="button" title="Descarga el historial para abrir en Excel (.csv)">⬇ Exportar Excel/CSV</button>
+          <button class="toggle" id="impBtn" type="button" title="Sube un respaldo .json para restaurar el historial">⬆ Importar respaldo</button>
+          <input id="impFile" type="file" accept=".json,application/json" hidden />
+          <button class="toggle" id="histToggle" type="button">Mostrar historial</button>
+        </div>
       </div>
+      <span class="msg" id="ioMsg" style="display:block;margin:0 0 6px"></span>
       <div class="wrapx" id="histWrap" hidden><table class="hist">
         <thead><tr><th>Compañía</th><th>Tasa</th><th>Fecha</th><th>Hora</th><th>Acciones</th></tr></thead>
         <tbody id="histBody"></tbody>
@@ -402,6 +409,42 @@ document.getElementById("rGo").addEventListener("click",()=>{document.getElement
 document.getElementById("rDismiss").addEventListener("click",()=>{document.getElementById("reminder").classList.remove("show");try{document.title="Comparables COP-VES";}catch{}});
 if(lget("remindOn")==="1")enableRem();else document.getElementById("next").textContent="recordatorios apagados";
 setInterval(checkRem,30000);
+
+// ---- exportar / importar respaldo ----
+function ioMsg(txt,cls){ const el=document.getElementById("ioMsg"); el.textContent=txt||""; el.className="msg"+(cls?(" "+cls):""); }
+function download(name,text,type){ const blob=new Blob([text],{type:type||"application/octet-stream"});
+  const u=URL.createObjectURL(blob),a=document.createElement("a"); a.href=u; a.download=name; document.body.appendChild(a); a.click();
+  setTimeout(()=>{URL.revokeObjectURL(u);a.remove();},300); }
+function stamp(){ const c=colNow(); return c.date+"_"+c.full.slice(0,5).replace(":",""); }
+document.getElementById("expJson").addEventListener("click",()=>{
+  if(!QUOTES.length){ ioMsg("No hay registros para exportar.","err"); return; }
+  download(`respaldo-historial_${stamp()}.json`, JSON.stringify({quotes:QUOTES,config:{refAmount:REF_AMOUNT}},null,2), "application/json");
+  ioMsg(`Respaldo descargado (${QUOTES.length} registros).`,"ok");
+});
+document.getElementById("expCsv").addEventListener("click",()=>{
+  if(!QUOTES.length){ ioMsg("No hay registros para exportar.","err"); return; }
+  const esc=v=>{ const s=String(v==null?"":v); return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
+  const rows=[...QUOTES].sort((a,b)=>a.ts-b.ts);
+  const head=["FECHA","HORA","COMPAÑÍA","TASA COMPRA"];
+  const body=rows.map(q=>[q.fecha||"",q.hora||"",q.company||"",String(q.rate).replace(".",",")].map(esc).join(";"));
+  download(`historial_${stamp()}.csv`, "﻿"+[head.join(";"),...body].join("\r\n"), "text/csv;charset=utf-8");
+  ioMsg(`Excel/CSV descargado (${rows.length} registros).`,"ok");
+});
+document.getElementById("impBtn").addEventListener("click",()=>document.getElementById("impFile").click());
+document.getElementById("impFile").addEventListener("change", async (e)=>{
+  const file=e.target.files&&e.target.files[0]; e.target.value="";
+  if(!file) return;
+  let data; try{ data=JSON.parse(await file.text()); }catch{ ioMsg("El archivo no es un JSON válido.","err"); return; }
+  const arr=Array.isArray(data)?data:(Array.isArray(data.quotes)?data.quotes:null);
+  if(!arr){ ioMsg("El archivo no tiene el formato esperado (se esperaba un respaldo con cotizaciones).","err"); return; }
+  if(!confirm(`Vas a importar ${arr.length} registros del respaldo. Se fusionan con lo que ya exista (no se duplican). ¿Continuar?`)) return;
+  ioMsg("Importando…");
+  try{ const r=await api("/api/quotes/import",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({quotes:arr})});
+    const j=await r.json(); if(!r.ok)throw new Error(j.error||("HTTP "+r.status));
+    ioMsg(`Importado: ${j.added} nuevos, ${j.updated} actualizados, ${j.skipped} descartados. Total: ${j.total}.`,"ok");
+    loadData();
+  }catch(err){ ioMsg("Error al importar: "+(err.message||err),"err"); }
+});
 
 // ---- arranque + refresco periódico (ver lo que registran otros) ----
 render(); loadData(); setInterval(()=>{ if(!editingId) loadData(); }, 25000);
