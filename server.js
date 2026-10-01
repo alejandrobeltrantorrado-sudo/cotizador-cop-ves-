@@ -77,10 +77,12 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/config' && req.method === 'POST') {
       if (!authed(url, req)) return sendJSON(res, 401, { error: 'clave requerida' });
       let b = {}; try { b = JSON.parse(await readBody(req) || '{}'); } catch { return sendJSON(res, 400, { error: 'JSON inválido' }); }
-      const refAmount = num(b.refAmount);
-      if (!(refAmount > 0)) return sendJSON(res, 400, { error: 'refAmount inválido' });
-      writeJSON(CONFIG_FILE, { refAmount });
-      return sendJSON(res, 200, { ok: true });
+      const cfg = readJSON(CONFIG_FILE, { refAmount: 1000000, presentation: false, hidden: [] });
+      if (b.refAmount != null) { const r = num(b.refAmount); if (r > 0) cfg.refAmount = r; }
+      if (b.presentation != null) cfg.presentation = !!b.presentation;
+      if (Array.isArray(b.hidden)) cfg.hidden = [...new Set(b.hidden.map((s) => String(s).toUpperCase().trim()).filter(Boolean))];
+      writeJSON(CONFIG_FILE, cfg);
+      return sendJSON(res, 200, { ok: true, config: cfg });
     }
 
     // Editar un registro (corregir fecha/hora/tasa/compañía). Recalcula ts si cambia fecha/hora.
