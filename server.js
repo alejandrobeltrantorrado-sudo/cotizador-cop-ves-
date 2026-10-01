@@ -101,6 +101,32 @@ const server = http.createServer(async (req, res) => {
       return sendJSON(res, 200, { ok: true, entry: q });
     }
 
+    // Importar un respaldo (archivo JSON). Fusiona por id: no duplica, agrega lo que falte.
+    if (p === '/api/quotes/import' && req.method === 'POST') {
+      if (!authed(url, req)) return sendJSON(res, 401, { error: 'clave requerida' });
+      let b = {}; try { b = JSON.parse(await readBody(req) || '{}'); } catch { return sendJSON(res, 400, { error: 'JSON inválido' }); }
+      const incoming = Array.isArray(b) ? b : (Array.isArray(b.quotes) ? b.quotes : null);
+      if (!incoming) return sendJSON(res, 400, { error: 'se esperaba un arreglo de cotizaciones o {quotes:[...]}' });
+      const current = readJSON(QUOTES_FILE, []);
+      const byId = new Map(current.map((q) => [q.id, q]));
+      let added = 0, updated = 0, skipped = 0;
+      for (const raw of incoming) {
+        const company = String(raw && raw.company || '').trim();
+        const rate = num(raw && raw.rate);
+        if (!company || !(rate > 0)) { skipped++; continue; }
+        const fecha = raw.fecha || null, hora = raw.hora || null;
+        let ts = num(raw.ts);
+        if (!(ts > 0)) { const dt = new Date(`${fecha || ''}T${hora || '00:00'}:00`); ts = isNaN(dt.getTime()) ? Date.now() : dt.getTime(); }
+        const id = raw.id || ('q' + ts + Math.random().toString(36).slice(2, 6));
+        const entry = { id, company, rate, fecha, hora, ts, refAmount: num(raw.refAmount) || undefined };
+        if (byId.has(id)) updated++; else added++;
+        byId.set(id, entry);
+      }
+      const merged = [...byId.values()].sort((a, b) => a.ts - b.ts);
+      writeJSON(QUOTES_FILE, merged);
+      return sendJSON(res, 200, { ok: true, added, updated, skipped, total: merged.length });
+    }
+
     // Borrar un registro.
     if (p === '/api/quotes/delete' && req.method === 'POST') {
       if (!authed(url, req)) return sendJSON(res, 401, { error: 'clave requerida' });
